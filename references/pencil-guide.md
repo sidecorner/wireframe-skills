@@ -6,6 +6,59 @@ This guide explains how to create wireframes using the Pencil MCP tool within th
 
 ---
 
+## Known Gotchas (verified from trial runs)
+
+These are real errors that will break `batch_design`. Avoid them:
+
+### 1. `margin` property does not exist
+**Wrong:**
+```
+I(parent+"/", {"type":"frame", "margin":[0,20,0,20], ...})
+```
+**Correct:** Wrap the element in a frame with `padding` instead:
+```
+wrapper=I(parent+"/", {"type":"frame", "padding":[0,20,0,20], "width":"fill_container"})
+content=I(wrapper+"/", {...})
+```
+
+### 2. `fill` on `note` type is invalid
+`note` nodes cannot have a `fill` property (they don't extend CanHaveGraphics). Use `rectangle` or `frame` for colored containers.
+
+### 3. No JavaScript variables or arrays in batch_design scripts
+The batch_design script syntax does **not** support JavaScript arrays or loop constructs.
+**Wrong:**
+```
+days=["日","月","火","水","木","金","土"]
+```
+**Correct:** Create each item manually in separate operations.
+
+### 4. Icon name mapping — use lucide icon names exactly
+Common mismatches confirmed:
+- `plus-circle` → **`circle-plus`**
+- `home` → **`house`**
+- When unsure, check [lucide.dev](https://lucide.dev) for the exact icon id.
+
+### 5. `set_variables` is unreliable — hardcode hex values
+`set_variables` frequently fails with `Variable '0' does not have a valid definition`. Avoid it. Hardcode all color hex values directly in `batch_design` operations.
+
+### 6. `x`/`y` on children inside a flexbox parent cause layout warnings
+If a parent frame has `layout:"horizontal"` or `layout:"vertical"`, do NOT set `x`/`y` on its children. Pencil ignores x/y and emits a warning. Either remove x/y, or use a non-flex parent.
+
+### 7. `fit_content` on an empty node causes issues
+Setting `width:"fit_content"` or `height:"fit_content"` before any children are added leads to a zero-size node that's hard to recover. Add children first, then update the parent.
+
+### 8. `placeholder: true` required during construction
+All frames must start with `"placeholder": true`. Only set `"placeholder": false` when the frame is fully built (all children added). Forgetting this causes rendering artifacts.
+
+### 9. `textGrowth` rules
+- `"textGrowth": "fixed-width"` — requires explicit `width`. Height auto-grows with content.
+- `"textGrowth": "auto"` — ignores both `width` and `height`; text box sizes to content.
+- For text inside a fixed-size container, use `"fixed-width"` with an explicit `width`.
+
+---
+
+---
+
 ## Pencil Tool Workflow
 
 ### 1. Initialize the Document
@@ -54,15 +107,41 @@ Use `batch_design` to create wireframe screens. For wireframes:
 
 ### Screen Layout Template (Mobile, 390×844px)
 
+Actual dimensions confirmed via `get_guidelines("mobile-app")`:
+
 ```
-[Status Bar: 44px]
-[Navigation Bar: 56px]
+[Status Bar: 62px]          ← includes safe area top
+[Navigation Bar: ~50px]
   - Back button (left)
   - Title (center)
   - Primary action (right)
 [Content Area: flexible]
-[Tab Bar: 83px] (if applicable)
-[Home Indicator: 34px]
+[Tab Bar: 95px total]        ← outer container height
+  - Tab pill: 62px height, cornerRadius 36px
+  - Pill sits centered inside the 95px container
+[Bottom safe area included in tab bar container]
+```
+
+**Pill-style Tab Bar (per HIG):**
+```
+tabbar_outer=I(screen+"/", {
+  "type": "frame",
+  "x": 0, "y": 749,
+  "width": 390, "height": 95,
+  "layout": "horizontal",
+  "justifyContent": "center",
+  "alignItems": "center"
+})
+tabbar_pill=I(tabbar_outer+"/", {
+  "type": "frame",
+  "width": 280, "height": 62,
+  "cornerRadius": 36,
+  "fill": "#FFFFFF1A",
+  "layout": "horizontal",
+  "justifyContent": "space-around",
+  "alignItems": "center",
+  "padding": [0, 12, 0, 12]
+})
 ```
 
 ### Screen Layout Template (Web, 1440×900px)
@@ -209,6 +288,26 @@ img_label=I(img_placeholder+"/", {
 })
 ```
 
+### AI-Generated Hero Image
+
+For emotional/lifestyle apps, use `G()` to generate a contextual AI image instead of a gray placeholder. This produces a far more convincing wireframe and communicates the brand feeling immediately.
+
+```
+hero=I(screen+"/", {
+  "type": "frame",
+  "x": 0, "y": 62,
+  "width": 390, "height": 380
+})
+G(hero, "ai", "glowing flower bouquet, night sky background, soft blue and purple light, ethereal, illustration style")
+```
+
+**Tips for G() prompts:**
+- Include lighting style: "soft glow", "backlit", "ethereal light"
+- Include art style: "illustration", "watercolor", "3D render"
+- Include mood: "peaceful", "warm", "magical"
+- Keep prompts under 20 words for best results
+- G() must reference an existing node id, not a variable assigned in the same call
+
 ---
 
 ## Arranging Multiple Screens
@@ -222,7 +321,7 @@ Screen 3: x=860, y=0
 Screen 4: x=0,   y=900 (start new row after 3 screens)
 ```
 
-Always label each screen prominently:
+Always label each screen prominently using `text` type (not `note` — note nodes cannot have `fill`):
 ```
 label=I("canvas", {
   "type": "text",

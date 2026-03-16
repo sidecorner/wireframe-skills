@@ -1,9 +1,6 @@
 # Environment variables (contains API tokens)
 .env
 
-# Generated reports (wireframe outputs)
-reports/
-
 # macOS
 .DS_Store
 
